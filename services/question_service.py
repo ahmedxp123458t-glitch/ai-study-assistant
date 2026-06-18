@@ -1,8 +1,6 @@
-import os
 import json
-from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from services.llm import get_llm, safe_invoke
 
 
 QUESTIONS_PROMPT = PromptTemplate(
@@ -18,37 +16,28 @@ Each question must follow this JSON format:
 }}
 
 Rules:
-- Focus on conceptual understanding and key facts
-- Questions should be the type that appear on exams
-- Cover a range of difficulty levels
+- Cover different aspects of the content
+- Mix easy, medium, and hard questions
+- Provide clear, accurate model answers
 
-Return ONLY a valid JSON array of objects, with no additional text or markdown formatting.
-
-Content:
-{text}
+Return ONLY a valid JSON array of objects, with no additional text.
+Content: {text}
 """,
 )
 
 
-def generate_important_questions(text: str, num_questions: int = 5) -> list[dict]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not set")
+def generate_important_questions(text: str, num_questions: int = 5) -> list:
+    llm = get_llm()
+    if llm is None:
+        return [{"question": "API Key Required", "answer": "Set OPENAI_API_KEY in Vercel Environment Variables.", "difficulty": "easy", "topics": ["configuration"]}]
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3, api_key=api_key)
-    chain = LLMChain(llm=llm, prompt=QUESTIONS_PROMPT)
-
-    result = chain.invoke({"text": text, "num_questions": str(num_questions)})
-    raw = result["text"].strip()
-
-    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-
+    result = safe_invoke(llm, QUESTIONS_PROMPT, {"text": text[:3000], "num_questions": num_questions})
     try:
-        questions = json.loads(raw)
+        parsed = json.loads(result)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict) and "error" in parsed:
+            return [{"question": "Error", "answer": parsed["error"], "difficulty": "easy", "topics": ["error"]}]
     except json.JSONDecodeError:
-        raise ValueError(f"Failed to parse questions JSON: {raw[:200]}")
-
-    if not isinstance(questions, list):
-        raise ValueError("Questions data is not a list")
-
-    return questions
+        pass
+    return [{"question": "Generation failed", "answer": "Could not parse response.", "difficulty": "easy", "topics": ["error"]}]
