@@ -1,5 +1,6 @@
 import os
-import PyPDF2
+import pypdf
+PyPDF2 = pypdf
 from typing import Optional
 
 
