@@ -1,8 +1,6 @@
-import os
 import json
-from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from services.llm import get_llm, safe_invoke
 
 
 QUIZ_PROMPT = PromptTemplate(
@@ -18,32 +16,23 @@ Each question must follow this JSON format:
 }}
 
 Return ONLY a valid JSON array of objects, with no additional text or markdown formatting.
-
-Content:
-{text}
+Content: {text}
 """,
 )
 
 
-def generate_quiz(text: str, num_questions: int = 5) -> list[dict]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not set")
+def generate_quiz(text: str, num_questions: int = 5) -> list:
+    llm = get_llm()
+    if llm is None:
+        return [{"question": "API key not configured", "options": ["A) Set OPENAI_API_KEY"], "correct_answer": "A) Set OPENAI_API_KEY", "explanation": "Configure the environment variable in Vercel dashboard."}]
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.4, api_key=api_key)
-    chain = LLMChain(llm=llm, prompt=QUIZ_PROMPT)
-
-    result = chain.invoke({"text": text, "num_questions": str(num_questions)})
-    raw = result["text"].strip()
-
-    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-
+    result = safe_invoke(llm, QUIZ_PROMPT, {"text": text[:3000], "num_questions": num_questions})
     try:
-        quiz_data = json.loads(raw)
+        parsed = json.loads(result)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict) and "error" in parsed:
+            return [{"question": "Error", "options": ["A) Try again"], "correct_answer": "A) Try again", "explanation": parsed["error"]}]
     except json.JSONDecodeError:
-        raise ValueError(f"Failed to parse quiz JSON from LLM response: {raw[:200]}")
-
-    if not isinstance(quiz_data, list):
-        raise ValueError("Quiz data is not a list")
-
-    return quiz_data
+        pass
+    return [{"question": "Generation failed", "options": ["A) Try again"], "correct_answer": "A) Try again", "explanation": "Could not parse response"}]
