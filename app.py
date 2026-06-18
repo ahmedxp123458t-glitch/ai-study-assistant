@@ -34,7 +34,11 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    import sys
+    try:
+        init_db()
+    except Exception as e:
+        print(f"Startup DB error: {e}", file=sys.stderr)
     yield
 
 
@@ -44,6 +48,10 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    try:
+        return templates.TemplateResponse("index.html", {"request": request})
+    except Exception as e:
+        return HTMLResponse(f"<html><body><h1>Server Error</h1><p>{str(e)}</p></body></html>", status_code=500)
     return templates.TemplateResponse("index.html", {"request": request})
 
 
