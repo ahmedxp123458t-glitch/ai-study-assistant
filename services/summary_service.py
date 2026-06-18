@@ -1,7 +1,6 @@
-import os
-from langchain_openai import ChatOpenAI
+import json
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from services.llm import get_llm, safe_invoke
 
 
 SUMMARY_PROMPT = PromptTemplate(
@@ -21,11 +20,15 @@ Summary:""",
 
 
 def generate_summary(text: str, detail_level: str = "standard") -> str:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not set")
+    llm = get_llm()
+    if llm is None:
+        return "OPENAI_API_KEY not configured. Please set it in Vercel Environment Variables."
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3, api_key=api_key)
-    chain = LLMChain(llm=llm, prompt=SUMMARY_PROMPT)
-    result = chain.invoke({"text": text, "detail_level": detail_level})
-    return result["text"].strip()
+    result = safe_invoke(llm, SUMMARY_PROMPT, {"text": text, "detail_level": detail_level})
+    try:
+        parsed = json.loads(result)
+        if "error" in parsed:
+            return f"Error: {parsed['error']}"
+    except json.JSONDecodeError:
+        pass
+    return result
