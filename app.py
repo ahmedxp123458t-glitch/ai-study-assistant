@@ -28,13 +28,13 @@ from services.study_planner import create_study_plan
 load_dotenv()
 
 BASE_DIR = Path(__file__).parent
-UPLOAD_DIR = BASE_DIR / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = Path(os.path.sep, "tmp", "uploads")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import sys
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     try:
         init_db()
     except Exception as e:
