@@ -1,8 +1,6 @@
-import os
 import json
-from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from services.llm import get_llm, safe_invoke
 
 
 FLASHCARD_PROMPT = PromptTemplate(
@@ -18,35 +16,26 @@ Each flashcard must follow this JSON format:
 Rules:
 - Make front concise and specific
 - Make back clear and informative
-- Cover distinct concepts (no duplicates)
+- Cover different concepts from the text
 
-Return ONLY a valid JSON array of objects, with no additional text or markdown formatting.
-
-Content:
-{text}
+Return ONLY a valid JSON array of objects, with no additional text.
+Content: {text}
 """,
 )
 
 
-def generate_flashcards(text: str, num_cards: int = 5) -> list[dict]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not set")
+def generate_flashcards(text: str, num_cards: int = 5) -> list:
+    llm = get_llm()
+    if llm is None:
+        return [{"front": "API Key Required", "back": "Set OPENAI_API_KEY in Vercel Environment Variables."}]
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.4, api_key=api_key)
-    chain = LLMChain(llm=llm, prompt=FLASHCARD_PROMPT)
-
-    result = chain.invoke({"text": text, "num_cards": str(num_cards)})
-    raw = result["text"].strip()
-
-    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-
+    result = safe_invoke(llm, FLASHCARD_PROMPT, {"text": text[:3000], "num_cards": num_cards})
     try:
-        cards = json.loads(raw)
+        parsed = json.loads(result)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict) and "error" in parsed:
+            return [{"front": "Error", "back": parsed["error"]}]
     except json.JSONDecodeError:
-        raise ValueError(f"Failed to parse flashcards JSON: {raw[:200]}")
-
-    if not isinstance(cards, list):
-        raise ValueError("Flashcard data is not a list")
-
-    return cards
+        pass
+    return [{"front": "Generation failed", "back": "Could not parse response. Try again."}]
