@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Study Assistant</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f1a;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+    .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+    header {
+      text-align: center; padding: 32px 0 24px;
+      border-bottom: 1px solid #2a2a3e; margin-bottom: 28px;
+    }
+    header h1 {
+      font-size: 2rem; font-weight: 700;
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { color: #8888aa; margin-top: 6px; font-size: 0.95rem; }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 700px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+    .card {
+      background: #1a1a2e; border-radius: 12px; padding: 20px;
+      border: 1px solid #2a2a3e;
+    }
+    .card h2 { font-size: 1.1rem; margin-bottom: 14px; color: #c0c0e0; }
+    .card-full { grid-column: 1 / -1; }
+
+    label { display: block; font-size: 0.85rem; color: #9999bb; margin-bottom: 4px; }
+    input, textarea, select {
+      width: 100%; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid #2a2a3e; background: #12121e; color: #e0e0e0;
+      font-size: 0.9rem; outline: none; transition: border 0.2s;
+    }
+    input:focus, textarea:focus { border-color: #7c3aed; }
+    textarea { resize: vertical; font-family: inherit; }
+    textarea { min-height: 100px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 20px; border-radius: 8px; border: none;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; margin-top: 10px;
+    }
+    .btn-primary { background: #7c3aed; color: #fff; }
+    .btn-primary:hover { background: #6d28d9; }
+    .btn-secondary { background: #2a2a3e; color: #c0c0e0; }
+    .btn-secondary:hover { background: #3a3a4e; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .file-upload {
+      border: 2px dashed #2a2a3e; border-radius: 8px;
+      padding: 20px; text-align: center; cursor: pointer;
+      transition: border 0.2s; position: relative;
+    }
+    .file-upload:hover { border-color: #7c3aed; }
+    .file-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .file-upload p { pointer-events: none; }
+    .file-upload .icon { font-size: 1.5rem; }
+
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid #7c3aed; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+
+    .result-area {
+      background: #12121e; border-radius: 8px; padding: 16px;
+      margin-top: 12px; max-height: 400px; overflow-y: auto;
+      font-size: 0.9rem; line-height: 1.6;
+    }
+    .result-area h3 { color: #a78bfa; margin: 12px 0 6px; }
+    .result-area h3:first-child { margin-top: 0; }
+
+    .quiz-item, .q-item, .flashcard-item {
+      background: #1a1a2e; border: 1px solid #2a2a3e;
+      border-radius: 8px; padding: 14px; margin-bottom: 10px;
+    }
+    .quiz-item .q { font-weight: 600; margin-bottom: 8px; }
+    .quiz-item .option {
+      display: block; padding: 6px 10px; border-radius: 6px;
+      margin: 3px 0; cursor: default;
+    }
+    .quiz-item .correct { background: #065f4622; border-left: 3px solid #10b981; }
+    .quiz-item .explanation {
+      margin-top: 8px; font-size: 0.85rem; color: #8888aa;
+    }
+    .flashcard-item { cursor: pointer; position: relative; }
+    .flashcard-item .front { font-weight: 600; }
+    .flashcard-item .back {
+      margin-top: 8px; color: #a78bfa; display: none;
+    }
+    .flashcard-item.show .back { display: block; }
+
+    .question-item .q { font-weight: 600; }
+    .question-item .a { margin-top: 6px; color: #a78bfa; font-size: 0.85rem; }
+    .question-item .difficulty {
+      display: inline-block; font-size: 0.75rem; padding: 2px 8px;
+      border-radius: 12px; margin-top: 6px;
+    }
+    .diff-easy { background: #065f4633; color: #10b981; }
+    .diff-medium { background: #92400e33; color: #f59e0b; }
+    .diff-hard { background: #7f1d1d33; color: #ef4444; }
+
+    .plan-day {
+      background: #1a1a2e; border: 1px solid #2a2a3e;
+      border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+    }
+    .plan-day .day-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 6px;
+    }
+    .plan-day .day-num { font-weight: 700; color: #7c3aed; }
+    .plan-day .date { color: #8888aa; font-size: 0.85rem; }
+    .plan-day .topics { font-size: 0.9rem; }
+    .plan-day .focus { font-size: 0.85rem; color: #a78bfa; margin-top: 4px; }
+    .tips-list li { margin: 4px 0; font-size: 0.9rem; }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: #7c3aed; color: #fff; padding: 12px 20px;
+      border-radius: 8px; font-weight: 600; z-index: 999;
+      opacity: 0; transform: translateY(20px);
+      transition: all 0.3s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: #dc2626; }
+    .toast.success { background: #10b981; }
+
+    .loading-overlay {
+      display: none; position: fixed; inset: 0; z-index: 998;
+      background: rgba(15,15,26,0.8); align-items: center; justify-content: center;
+    }
+    .loading-overlay.active { display: flex; }
+    .loading-box {
+      background: #1a1a2e; padding: 24px 32px; border-radius: 12px;
+      text-align: center; border: 1px solid #2a2a3e;
+    }
+    .loading-box p { margin-top: 10px; color: #8888aa; }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+      <div class="spinner" style="width:32px;height:32px;border-width:3px"></div>
+      <p>Processing...</p>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <div class="container">
+    <header>
+      <h1>AI Study Assistant</h1>
+      <p>Upload your notes or PDF and let AI help you study smarter</p>
+    </header>
+
+    <div class="grid">
+      <!-- PDF Upload -->
+      <div class="card">
+        <h2> Upload PDF</h2>
+        <div class="file-upload" id="pdfUpload" onclick="document.getElementById('pdfInput').click()">
+          <input type="file" id="pdfInput" accept=".pdf" onchange="uploadPDF(this.files[0])">
+          <p class="icon"> </p>
+          <p id="pdfLabel">Click to upload a PDF</p>
+        </div>
+        <p id="pdfStatus" style="font-size:0.85rem;color:#8888aa;margin-top:6px"></p>
+      </div>
+
+      <!-- Notes Input -->
+      <div class="card">
+        <h2> Paste Notes</h2>
+        <textarea id="notesInput" placeholder="Paste your study notes here..."></textarea>
+      </div>
+
+      <!-- Summary -->
+      <div class="card">
+        <h2> Generate Summary</h2>
+        <label for="detailLevel">Detail level</label>
+        <select id="detailLevel">
+          <option value="brief">Brief</option>
+          <option value="standard" selected>Standard</option>
+          <option value="detailed">Detailed</option>
+        </select>
+        <button class="btn btn-primary" onclick="summarize()"> Summarize</button>
+        <div class="result-area hidden" id="summaryResult"></div>
+      </div>
+
+      <!-- Quiz -->
+      <div class="card">
+        <h2> Generate Quiz</h2>
+        <label for="quizCount">Number of questions</label>
+        <input type="number" id="quizCount" value="5" min="1" max="20">
+        <button class="btn btn-primary" onclick="generateQuiz()"> Generate Quiz</button>
+        <div class="result-area hidden" id="quizResult"></div>
+      </div>
+
+      <!-- Flashcards -->
+      <div class="card">
+        <h2> Flashcards</h2>
+        <label for="cardCount">Number of cards</label>
+        <input type="number" id="cardCount" value="5" min="1" max="30">
+        <button class="btn btn-primary" onclick="generateFlashcards()"> Generate</button>
+        <div class="result-area hidden" id="flashcardResult"></div>
+      </div>
+
+      <!-- Important Questions -->
+      <div class="card">
+        <h2> Important Questions</h2>
+        <label for="qCount">Number of questions</label>
+        <input type="number" id="qCount" value="5" min="1" max="20">
+        <button class="btn btn-primary" onclick="extractQuestions()"> Extract</button>
+        <div class="result-area hidden" id="questionResult"></div>
+      </div>
+
+      <!-- Study Planner -->
+      <div class="card card-full">
+        <h2> Study Planner</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label for="examDate">Exam date</label>
+            <input type="date" id="examDate">
+          </div>
+          <div>
+            <label for="hoursPerDay">Hours per day</label>
+            <input type="number" id="hoursPerDay" value="2" min="0.5" max="24" step="0.5">
+          </div>
+        </div>
+        <label for="planTopics" style="margin-top:10px">Topics (optional)</label>
+        <input type="text" id="planTopics" placeholder="e.g. Calculus, Linear Algebra, Statistics">
+        <button class="btn btn-primary" onclick="generateStudyPlan()"> Create Study Plan</button>
+        <div class="result-area hidden" id="planResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentText = '';
+
+    function showToast(message, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = message; t.className = 'toast ' + type + ' show';
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function setLoading(on) {
+      document.getElementById('loadingOverlay').classList.toggle('active', on);
+    }
+
+    function getContent() {
+      const notes = document.getElementById('notesInput').value.trim();
+      if (notes) { currentText = notes; return notes; }
+      if (currentText) return currentText;
+      showToast('Please upload a PDF or paste notes first', 'error');
+      return null;
+    }
+
+    async function uploadPDF(file) {
+      if (!file) return;
+      setLoading(true);
+      const fd = new FormData(); fd.append('file', file);
+      document.getElementById('pdfLabel').textContent = 'Uploading...';
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Upload failed');
+        currentText = data.text;
+        document.getElementById('pdfLabel').textContent = ' ' + data.filename + ' (' + data.length + ' chars)';
+        document.getElementById('pdfStatus').textContent = 'Extracted successfully';
+        showToast('PDF uploaded and text extracted!');
+      } catch (e) {
+        document.getElementById('pdfLabel').textContent = 'Click to upload a PDF';
+        showToast(e.message, 'error');
+      }
+      setLoading(false);
+    }
+
+    async function summarize() {
+      const content = getContent(); if (!content) return;
+      const detail = document.getElementById('detailLevel').value;
+      setLoading(true);
+      try {
+        const res = await fetch('/api/summarize', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, detail_level: detail })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        const el = document.getElementById('summaryResult');
+        el.classList.remove('hidden');
+        el.innerHTML = '<h3>Summary</h3><p>' + data.summary.replace(/\n/g, '<br>') + '</p>';
+        showToast('Summary generated!');
+      } catch (e) { showToast(e.message, 'error'); }
+      setLoading(false);
+    }
+
+    async function generateQuiz() {
+      const content = getContent(); if (!content) return;
+      const num = parseInt(document.getElementById('quizCount').value) || 5;
+      setLoading(true);
+      try {
+        const res = await fetch('/api/quiz', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, num_questions: num })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        const el = document.getElementById('quizResult');
+        el.classList.remove('hidden');
+        el.innerHTML = '<h3>Quiz (' + data.questions.length + ' questions)</h3>' +
+          data.questions.map(q =>
+            '<div class="quiz-item">' +
+            '<div class="q">' + q.question + '</div>' +
+            q.options.map(o =>
+              '<div class="option' + (o === q.correct_answer ? ' correct' : '') + '">' +
+              (o === q.correct_answer ? ' ' : '  ') + o +
+              '</div>'
+            ).join('') +
+            (q.explanation ? '<div class="explanation"> ' + q.explanation + '</div>' : '') +
+            '</div>'
+          ).join('');
+        showToast('Quiz generated!');
+      } catch (e) { showToast(e.message, 'error'); }
+      setLoading(false);
+    }
+
+    async function generateFlashcards() {
+      const content = getContent(); if (!content) return;
+      const num = parseInt(document.getElementById('cardCount').value) || 5;
+      setLoading(true);
+      try {
+        const res = await fetch('/api/flashcards', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, num_cards: num })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        const el = document.getElementById('flashcardResult');
+        el.classList.remove('hidden');
+        el.innerHTML = '<h3>Flashcards (' + data.flashcards.length + ' cards)</h3>' +
+          data.flashcards.map((c, i) =>
+            '<div class="flashcard-item" onclick="this.classList.toggle(\'show\')">' +
+            '<div class="front"> ' + c.front + '</div>' +
+            '<div class="back"> ' + c.back + '</div>' +
+            '<div style="font-size:0.75rem;color:#555;margin-top:4px">Click to flip</div>' +
+            '</div>'
+          ).join('');
+        showToast('Flashcards generated!');
+      } catch (e) { showToast(e.message, 'error'); }
+      setLoading(false);
+    }
+
+    async function extractQuestions() {
+      const content = getContent(); if (!content) return;
+      const num = parseInt(document.getElementById('qCount').value) || 5;
+      setLoading(true);
+      try {
+        const res = await fetch('/api/questions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, num_questions: num })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        const el = document.getElementById('questionResult');
+        el.classList.remove('hidden');
+        const diffClass = { 'easy': 'diff-easy', 'medium': 'diff-medium', 'hard': 'diff-hard' };
+        el.innerHTML = '<h3>Important Questions (' + data.questions.length + ')</h3>' +
+          data.questions.map(q =>
+            '<div class="quiz-item question-item">' +
+            '<div class="q">' + q.question + '</div>' +
+            '<div class="a"> ' + q.answer + '</div>' +
+            '<span class="difficulty ' + (diffClass[q.difficulty] || 'diff-medium') + '">' + (q.difficulty || 'medium') + '</span>' +
+            '</div>'
+          ).join('');
+        showToast('Questions extracted!');
+      } catch (e) { showToast(e.message, 'error'); }
+      setLoading(false);
+    }
+
+    async function generateStudyPlan() {
+      const examDate = document.getElementById('examDate').value;
+      const hours = parseFloat(document.getElementById('hoursPerDay').value);
+      const topics = document.getElementById('planTopics').value.trim() || 'General study topics';
+      if (!examDate) { showToast('Please select an exam date', 'error'); return; }
+      if (!hours || hours <= 0) { showToast('Enter valid hours per day', 'error'); return; }
+      const content = getContent();
+      setLoading(true);
+      try {
+        const body = { exam_date: examDate, hours_per_day: hours, topics };
+        if (content) body.content = content.slice(0, 500);
+        const res = await fetch('/api/study-plan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        const el = document.getElementById('planResult');
+        el.classList.remove('hidden');
+        el.innerHTML = '<h3>Study Plan (' + data.total_days + ' days until exam)</h3>' +
+          data.plan.map(d =>
+            '<div class="plan-day">' +
+            '<div class="day-header">' +
+            '<span class="day-num">Day ' + d.day + '</span>' +
+            '<span class="date">' + d.date + '  ' + d.hours + 'h</span>' +
+            '</div>' +
+            '<div class="topics">' + d.topics.join(', ') + '</div>' +
+            '<div class="focus">' + d.focus + '</div>' +
+            '</div>'
+          ).join('') +
+          (data.tips && data.tips.length ?
+            '<h3> Tips</h3><ul class="tips-list">' + data.tips.map(t => '<li>' + t + '</li>').join('') + '</ul>' : '');
+        showToast('Study plan created!');
+      } catch (e) { showToast(e.message, 'error'); }
+      setLoading(false);
+    }
+
+    // Set default exam date to 30 days from now
+    document.addEventListener('DOMContentLoaded', function() {
+      const d = new Date(); d.setDate(d.getDate() + 30);
+      document.getElementById('examDate').value = d.toISOString().split('T')[0];
+    });
+  </script>
+</body>
+</html>
