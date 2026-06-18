@@ -1,9 +1,7 @@
-import os
 import json
 from datetime import datetime, date
-from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from services.llm import get_llm, safe_invoke
 
 
 STUDY_PLAN_PROMPT = PromptTemplate(
@@ -19,64 +17,43 @@ For each day, provide:
 {{
   "day": 1,
   "date": "YYYY-MM-DD",
-  "topics": ["Topic 1", "Topic 2"],
-  "hours": {hours_per_day},
-  "focus": "Brief description of what to focus on"
+  "focus_area": "Main topic for the day",
+  "topics": ["specific subtopics"],
+  "hours": 2,
+  "activities": ["activity 1", "activity 2"],
+  "resources": ["resource suggestion"],
+  "status": "pending"
 }}
 
-Rules:
-- Distribute topics logically over the available days
-- Schedule review sessions periodically
-- Start from foundational topics and progress to advanced
-
-Return ONLY a valid JSON object with the following structure (no markdown):
-{{
-  "plan": [day objects...],
-  "tips": ["tip1", "tip2", "tip3"]
-}}
+Return ONLY a valid JSON array of day objects, with no additional text.
 """,
 )
 
 
-def create_study_plan(
-    exam_date_str: str,
-    hours_per_day: float,
-    topics: str = "General study topics",
-) -> dict:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not set")
-
-    exam_date = datetime.strptime(exam_date_str, "%Y-%m-%d").date()
-    today = date.today()
-    total_days = (exam_date - today).days
-
-    if total_days <= 0:
-        raise ValueError("Exam date must be in the future")
-
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3, api_key=api_key)
-    chain = LLMChain(llm=llm, prompt=STUDY_PLAN_PROMPT)
-
-    result = chain.invoke({
-        "exam_date": exam_date_str,
-        "total_days": total_days,
-        "hours_per_day": hours_per_day,
-        "topics": topics,
-    })
-    raw = result["text"].strip()
-
-    raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+def create_study_plan(exam_date: str, hours_per_day: float = 2.0, topics: str = "General study topics") -> list:
+    llm = get_llm()
+    if llm is None:
+        return [{"day": 1, "date": exam_date, "focus_area": "API Key Required", "topics": ["Set OPENAI_API_KEY"], "hours": hours_per_day, "activities": ["Configure environment variable in Vercel"], "resources": ["Vercel Dashboard"], "status": "pending"}]
 
     try:
-        plan_data = json.loads(raw)
+        exam = datetime.strptime(exam_date, "%Y-%m-%d").date()
+        today = date.today()
+        total_days = max((exam - today).days, 1)
+    except ValueError:
+        total_days = 30
+
+    result = safe_invoke(llm, STUDY_PLAN_PROMPT, {
+        "exam_date": exam_date,
+        "total_days": str(total_days),
+        "hours_per_day": str(hours_per_day),
+        "topics": topics[:500],
+    })
+    try:
+        parsed = json.loads(result)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict) and "error" in parsed:
+            return [{"day": 1, "date": exam_date, "focus_area": "Error", "topics": [parsed["error"]], "hours": hours_per_day, "activities": ["Check configuration"], "resources": [], "status": "pending"}]
     except json.JSONDecodeError:
-        raise ValueError(f"Failed to parse study plan JSON: {raw[:200]}")
-
-    if "plan" not in plan_data:
-        raise ValueError("Study plan missing 'plan' key")
-
-    plan_data["exam_date"] = exam_date_str
-    plan_data["total_days"] = total_days
-    plan_data["hours_per_day"] = hours_per_day
-
-    return plan_data
+        pass
+    return [{"day": 1, "date": exam_date, "focus_area": "Study Plan", "topics": [topics[:50]], "hours": hours_per_day, "activities": ["Review material", "Practice problems"], "resources": ["Course materials"], "status": "pending"}]
